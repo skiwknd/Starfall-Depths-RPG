@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Starfall Depths</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="space-effects-global" aria-hidden="true">
+    <span class="asteroid asteroid-1"></span>
+    <span class="asteroid asteroid-2"></span>
+    <span class="asteroid asteroid-3"></span>
+    <span class="asteroid asteroid-4"></span>
+    <span class="spaceship ship-1"></span>
+    <span class="spaceship ship-2"></span>
+  </div>
+
+  <main class="app">
+    <section id="title-screen" class="panel panel-center">
+      <p class="eyebrow">Spencer's Space Adventure</p>
+      <h1>Starfall Depths</h1>
+      <p class="intro">
+        Explore abondoned space stations, gather materials to survive, and hopefully leave with the ultimate treasure....The Singularity Core
+      </p>
+
+      <label for="player-name" class="label">Character Name</label>
+      <input id="player-name" class="text-input" type="text" maxlength="20" placeholder="Captain PepperJack">
+
+      <label for="player-class" class="label">Character Class</label>
+      <select id="player-class" class="text-input">
+        <option value="grunt">Grunt</option>
+        <option value="smuggler">Smuggler</option>
+        <option value="cyborg">Cyborg</option>
+      </select>
+
+      <section class="class-preview">
+        <h2 class="class-preview-title">Class Attributes</h2>
+        <p id="class-preview-text" class="class-preview-text"></p>
+      </section>
+
+      <div class="title-actions">
+        <button id="start-button" class="primary-button">Start Game</button>
+        <button id="load-button" class="secondary-button" type="button">Load Save</button>
+      </div>
+    </section>
+
+    <section id="game-screen" class="panel game-shell hidden">
+      <header class="game-header">
+        <div class="game-title-block">
+          <p class="eyebrow">Live Mission Interface</p>
+          <h1 class="game-title">Starfall Depths</h1>
+        </div>
+
+        <div class="toolbar settings-menu">
+          <button
+            id="settings-button"
+            class="secondary-button settings-button"
+            type="button"
+            aria-controls="settings-screen"
+          >
+            Settings
+          </button>
+        </div>
+      </header>
+
+      <section class="status-card">
+        <div class="stats-panel">
+          <div class="stat-box">
+            <span class="stat-label">Name</span>
+            <span id="stat-name" class="stat-value">-</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Class</span>
+            <span id="stat-class" class="stat-value">-</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Health</span>
+            <span id="stat-health" class="stat-value">0</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Gold</span>
+            <span id="stat-gold" class="stat-value">0</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Location</span>
+            <span id="stat-location" class="stat-value">-</span>
+          </div>
+        </div>
+      </section>
+
+      <p id="system-message" class="system-message" data-tone="neutral">Ready for launch.</p>
+
+      <div class="game-layout">
+        <section class="left-column">
+          <section class="story-panel content-card">
+            <div class="panel-heading">
+              <p class="panel-kicker">Story</p>
+              <h2 id="scene-title">Adventure</h2>
+            </div>
+            <p id="story-text" class="story-text"></p>
+          </section>
+
+          <section id="dice-tray" class="dice-tray content-card hidden" aria-live="polite">
+            <div class="panel-heading">
+              <p class="panel-kicker">Dice Roll</p>
+              <p id="dice-label" class="dice-label"></p>
+            </div>
+            <div id="dice-display" class="dice-display"></div>
+          </section>
+
+          <section class="content-card">
+            <div class="panel-heading">
+              <p class="panel-kicker">Combat Feed</p>
+            </div>
+            <div id="combat-log" class="combat-log hidden"></div>
+            <section id="choices" class="choices"></section>
+          </section>
+
+          <section class="content-card map-panel">
+            <div class="panel-heading">
+              <p class="panel-kicker">Ship Map</p>
+              <h3 id="map-ship-name">Starfall Depths</h3>
+            </div>
+            <p id="map-ship-atmosphere" class="map-atmosphere"></p>
+            <div id="room-map" class="room-map"></div>
+          </section>
+
+          <section class="inventory-panel content-card">
+            <div class="panel-heading">
+              <p class="panel-kicker">Supplies</p>
+              <h3>Inventory</h3>
+            </div>
+            <p id="inventory-hint" class="inventory-hint">Inventory is empty.</p>
+            <div id="inventory-list" class="inventory-list"></div>
+          </section>
+        </section>
+
+        <aside class="right-column">
+          <section class="body-panel content-card">
+            <div class="panel-heading">
+              <p class="panel-kicker">Status</p>
+              <h3>Body Report</h3>
+            </div>
+            <div id="body-silhouette" class="body-silhouette" aria-label="Player body damage diagram">
+              <svg class="body-svg" viewBox="0 0 180 280" role="img" aria-hidden="true">
+                <circle id="body-head" class="body-part" cx="90" cy="36" r="23"></circle>
+                <rect id="body-torso" class="body-part" x="58" y="68" width="64" height="86" rx="24"></rect>
+                <rect id="body-left-arm" class="body-part" x="26" y="76" width="24" height="92" rx="12"></rect>
+                <rect id="body-right-arm" class="body-part" x="130" y="76" width="24" height="92" rx="12"></rect>
+                <rect id="body-left-leg" class="body-part" x="66" y="162" width="20" height="100" rx="10"></rect>
+                <rect id="body-right-leg" class="body-part" x="94" y="162" width="20" height="100" rx="10"></rect>
+              </svg>
+            </div>
+            <p id="body-hit-text" class="body-hit-text">No major injuries yet.</p>
+            <div id="injury-summary" class="injury-summary"></div>
+          </section>
+
+          <section class="recent-combat-panel content-card">
+            <div class="panel-heading">
+              <p class="panel-kicker">History</p>
+              <h3>Recent Combat</h3>
+            </div>
+            <div id="recent-combat-log" class="recent-combat-log"></div>
+          </section>
+
+          <section class="equipment-panel content-card">
+            <div class="panel-heading">
+              <p class="panel-kicker">Gear</p>
+              <h3>Equipment</h3>
+            </div>
+            <div id="equipment-summary" class="equipment-summary"></div>
+            <div id="equipment-list" class="equipment-list"></div>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section id="settings-screen" class="panel panel-center settings-screen hidden">
+      <p class="eyebrow">Game Menu</p>
+      <h1>Settings</h1>
+      <p class="intro">Adjust your game options here, then return to your adventure when you are ready.</p>
+
+      <div class="settings-screen-actions">
+        <button id="save-button" class="secondary-button settings-action" type="button">Save Game</button>
+        <button id="restart-button" class="secondary-button settings-action" type="button">Restart Game</button>
+      </div>
+
+      <section class="class-preview settings-card">
+        <h2 class="class-preview-title">Master Volume</h2>
+        <div class="volume-control">
+          <input id="volume-slider" class="volume-slider" type="range" min="0" max="100" step="5" value="70">
+          <span id="volume-value" class="volume-value">70%</span>
+        </div>
+      </section>
+
+      <button id="back-to-game-button" class="primary-button" type="button">Back to Game</button>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
