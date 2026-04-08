@@ -88,6 +88,7 @@ const SOUND_FILES = {
   triumph: "sounds/triumph.wav"
 };
 const MASTER_VOLUME_KEY = "starfall-depths-master-volume";
+const ABILITY_COOLDOWN_MS = 2 * 60 * 1000;
 
 const classes = {
   grunt: {
@@ -673,6 +674,7 @@ const soundEffects = createSoundEffects();
 let bodyHighlightTimer = null;
 let damageFlashTimer = null;
 let masterVolume = loadMasterVolume();
+let abilityReadyPulseTimer = null;
 
 startButton.addEventListener("click", beginGame);
 loadButton.addEventListener("click", loadGame);
@@ -709,6 +711,7 @@ updateLoadButton();
 renderInventory();
 updateClassPreview();
 syncVolumeControls();
+window.setInterval(updateAbilityCooldownUI, 250);
 
 function createDefaultState() {
   return {
@@ -728,7 +731,7 @@ function createDefaultState() {
     progressFlags: {},
     inCombat: false,
     combat: null,
-    classAbilityUsed: false,
+    abilityCooldowns: createDefaultAbilityCooldowns(),
     shieldBlock: 0,
     lastBodyHitText: "No major injuries yet.",
     bodyParts: createDefaultBodyParts(),
@@ -741,6 +744,13 @@ function createDefaultEquipment() {
   return EQUIPMENT_SLOTS.reduce((equipment, slotKey) => {
     equipment[slotKey] = null;
     return equipment;
+  }, {});
+}
+
+function createDefaultAbilityCooldowns() {
+  return Object.keys(classes).reduce((cooldowns, classKey) => {
+    cooldowns[classKey] = 0;
+    return cooldowns;
   }, {});
 }
 
@@ -911,8 +921,20 @@ function renderChoices(choices) {
 
   choices.forEach((choice) => {
     const button = document.createElement("button");
-    button.className = "choice-button";
+    button.className = `choice-button${choice.className ? ` ${choice.className}` : ""}`;
     button.textContent = choice.text;
+    button.disabled = Boolean(choice.disabled);
+
+    if (choice.html) {
+      button.innerHTML = choice.html;
+    }
+
+    if (choice.dataset) {
+      Object.entries(choice.dataset).forEach(([key, value]) => {
+        button.dataset[key] = value;
+      });
+    }
+
     button.addEventListener("click", choice.action);
     choicesContainer.appendChild(button);
   });
@@ -1946,13 +1968,36 @@ function startCombat(enemyKey, returnRoom = gameState.currentRoom, returnShip = 
 
 function renderCombatChoices() {
   const classData = classes[gameState.playerClass];
+  const abilityChoice = buildAbilityChoice(classData);
 
   renderChoices([
     { text: "Attack", action: playerAttack },
-    { text: `Use ${classData.abilityName}`, action: useClassAbility },
+    abilityChoice,
     { text: "Flee", action: attemptFlee },
     { text: "Save Game", action: saveGame }
   ]);
+
+  updateAbilityCooldownUI();
+}
+
+function buildAbilityChoice(classData) {
+  const classKey = gameState.playerClass;
+  const abilityReady = isClassAbilityReady(classKey);
+  const remainingMs = getAbilityCooldownRemaining(classKey);
+  const label = abilityReady
+    ? classData.abilityName
+    : `${classData.abilityName} (${formatCooldownTime(remainingMs)})`;
+
+  return {
+    text: label,
+    html: `<span class="ability-button-label">${label}</span>`,
+    action: useClassAbility,
+    className: "ability-button",
+    disabled: !abilityReady,
+    dataset: {
+      abilityClass: classKey
+    }
+  };
 }
 
 async function playerAttack() {
@@ -1999,15 +2044,17 @@ async function useClassAbility() {
     return;
   }
 
-  if (gameState.classAbilityUsed) {
+  if (!isClassAbilityReady(gameState.playerClass)) {
+    const remaining = formatCooldownTime(getAbilityCooldownRemaining(gameState.playerClass));
     combatLog.classList.remove("hidden");
     combatLog.textContent =
-      `You have already used your special class ability in this adventure.\n${gameState.combat.enemyName} Health: ${gameState.combat.enemyHealth}\nYour Health: ${gameState.health}`;
+      `${classes[gameState.playerClass].abilityName} is recharging for ${remaining}.\n${gameState.combat.enemyName} Health: ${gameState.combat.enemyHealth}\nYour Health: ${gameState.health}`;
     return;
   }
 
   const classData = classes[gameState.playerClass];
-  gameState.classAbilityUsed = true;
+  startAbilityCooldown(gameState.playerClass);
+  updateAbilityCooldownUI();
 
   if (gameState.playerClass === "grunt") {
     const roll = classData.useAbility();
@@ -2475,6 +2522,7 @@ function loadGame() {
     const parsed = JSON.parse(savedData);
     Object.assign(gameState, createDefaultState(), parsed);
     migrateLegacyTreasureReferences(gameState);
+    ensureAbilityCooldownsShape(gameState);
 
     if (!parsed.currentRoom && parsed.currentScene) {
       gameState.currentRoom = mapLegacySceneToRoom(parsed.currentScene);
@@ -2525,6 +2573,7 @@ function loadGame() {
 
     renderCurrentView();
     playSound("load");
+    updateAbilityCooldownUI();
   } catch (error) {
     showSystemMessage("Load failed because the saved data could not be read.", "bad");
   }
@@ -2544,6 +2593,13 @@ function migrateLegacyTreasureReferences(state) {
           : itemName
     );
   }
+}
+
+function ensureAbilityCooldownsShape(state) {
+  state.abilityCooldowns = {
+    ...createDefaultAbilityCooldowns(),
+    ...(state.abilityCooldowns || {})
+  };
 }
 
 function showSystemMessage(message, tone) {
@@ -2633,6 +2689,75 @@ function wait(milliseconds) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, milliseconds);
   });
+}
+
+function isClassAbilityReady(classKey) {
+  return getAbilityCooldownRemaining(classKey) <= 0;
+}
+
+function getAbilityCooldownRemaining(classKey) {
+  const readyAt = gameState.abilityCooldowns?.[classKey] || 0;
+  return Math.max(0, readyAt - Date.now());
+}
+
+function getAbilityCooldownProgress(classKey) {
+  const remainingMs = getAbilityCooldownRemaining(classKey);
+  return Math.max(0, Math.min(1, 1 - remainingMs / ABILITY_COOLDOWN_MS));
+}
+
+function formatCooldownTime(milliseconds) {
+  const totalSeconds = Math.ceil(milliseconds / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
+function startAbilityCooldown(classKey) {
+  gameState.abilityCooldowns[classKey] = Date.now() + ABILITY_COOLDOWN_MS;
+}
+
+function updateAbilityCooldownUI() {
+  const abilityButton = choicesContainer.querySelector(".ability-button");
+
+  if (!abilityButton) {
+    return;
+  }
+
+  const classKey = abilityButton.dataset.abilityClass;
+  const classData = classes[classKey];
+  const ready = isClassAbilityReady(classKey);
+  const progress = getAbilityCooldownProgress(classKey);
+  const remainingMs = getAbilityCooldownRemaining(classKey);
+  const nextState = ready ? "ready" : "cooling";
+  const previousState = abilityButton.dataset.cooldownState || nextState;
+  const label = ready
+    ? classData.abilityName
+    : `${classData.abilityName} (${formatCooldownTime(remainingMs)})`;
+
+  abilityButton.innerHTML = `<span class="ability-button-label">${label}</span>`;
+  abilityButton.disabled = !ready;
+  abilityButton.dataset.cooldownState = nextState;
+  abilityButton.classList.toggle("cooling-down", !ready);
+  abilityButton.classList.toggle("ability-ready", ready);
+  abilityButton.style.setProperty("--cooldown-progress", String(progress));
+
+  if (previousState === "cooling" && ready) {
+    triggerAbilityReadyPulse(abilityButton);
+  }
+}
+
+function triggerAbilityReadyPulse(button) {
+  if (abilityReadyPulseTimer) {
+    window.clearTimeout(abilityReadyPulseTimer);
+  }
+
+  button.classList.remove("ability-ready-pulse");
+  void button.offsetWidth;
+  button.classList.add("ability-ready-pulse");
+
+  abilityReadyPulseTimer = window.setTimeout(() => {
+    button.classList.remove("ability-ready-pulse");
+  }, 900);
 }
 
 function randomNumber(min, max) {
