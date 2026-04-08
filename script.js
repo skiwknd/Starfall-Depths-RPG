@@ -675,6 +675,7 @@ let bodyHighlightTimer = null;
 let damageFlashTimer = null;
 let masterVolume = loadMasterVolume();
 let abilityReadyPulseTimer = null;
+let abilityCooldownSyncTimer = null;
 
 startButton.addEventListener("click", beginGame);
 loadButton.addEventListener("click", loadGame);
@@ -1978,6 +1979,7 @@ function renderCombatChoices() {
   ]);
 
   updateAbilityCooldownUI();
+  scheduleAbilityCooldownSync();
 }
 
 function buildAbilityChoice(classData) {
@@ -2714,6 +2716,7 @@ function formatCooldownTime(milliseconds) {
 
 function startAbilityCooldown(classKey) {
   gameState.abilityCooldowns[classKey] = Date.now() + ABILITY_COOLDOWN_MS;
+  scheduleAbilityCooldownSync();
 }
 
 function updateAbilityCooldownUI() {
@@ -2744,6 +2747,29 @@ function updateAbilityCooldownUI() {
   if (previousState === "cooling" && ready) {
     triggerAbilityReadyPulse(abilityButton);
   }
+}
+
+function scheduleAbilityCooldownSync() {
+  if (abilityCooldownSyncTimer) {
+    window.clearTimeout(abilityCooldownSyncTimer);
+    abilityCooldownSyncTimer = null;
+  }
+
+  if (!gameState.inCombat) {
+    return;
+  }
+
+  const remainingMs = getAbilityCooldownRemaining(gameState.playerClass);
+
+  if (remainingMs <= 0) {
+    updateAbilityCooldownUI();
+    return;
+  }
+
+  abilityCooldownSyncTimer = window.setTimeout(() => {
+    updateAbilityCooldownUI();
+    scheduleAbilityCooldownSync();
+  }, remainingMs + 20);
 }
 
 function triggerAbilityReadyPulse(button) {
